@@ -12,14 +12,19 @@ permissions:
 jobs:
   build:
     name: Build Binaries
-    runs-on: ubuntu-latest
     strategy:
       matrix:
         include:
           - goos: linux
             goarch: amd64
+            runner: ubuntu-latest
           - goos: linux
             goarch: arm64
+            runner: ubuntu-latest
+          - goos: windows
+            goarch: amd64
+            runner: windows-latest
+    runs-on: ${{ matrix.runner }}
 
     steps:
       - uses: actions/checkout@v4
@@ -28,29 +33,55 @@ jobs:
         with:
           go-version: "1.24"
 
+      - name: Install Windows build tools
+        if: matrix.goos == 'windows'
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: true
+          install: >-
+            mingw-w64-x86_64-gcc
+
       - name: Install cross-compilation tools
         if: matrix.goarch == 'arm64'
         run: sudo apt-get update && sudo apt-get install -y gcc-aarch64-linux-gnu
 
       - name: Install CGO dependencies
-        if: matrix.goarch == 'amd64'
+        if: matrix.goarch == 'amd64' && matrix.goos == 'linux'
         run: sudo apt-get update && sudo apt-get install -y gcc
 
-      - name: Build
+      - name: Build (windows)
+        if: matrix.goos == 'windows'
+        shell: pwsh
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: "1"
+          CC: x86_64-w64-mingw32-gcc
+        run: |
+          $env:PATH = "C:\msys64\mingw64\bin;" + $env:PATH
+          $version = $env:GITHUB_REF_NAME.TrimStart('v')
+          $output = "dashgate-${{ matrix.goos }}-${{ matrix.goarch }}.exe"
+          go build -ldflags="-s -w -X main.Version=$version" -o $output .
+
+      - name: Build (linux)
+        if: matrix.goos != 'windows'
         env:
           GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.goarch }}
           CGO_ENABLED: "1"
           CC: ${{ matrix.goarch == 'arm64' && 'aarch64-linux-gnu-gcc' || 'gcc' }}
+        shell: bash
         run: |
           VERSION=${GITHUB_REF_NAME#v}
-          go build -ldflags="-s -w -X main.Version=${VERSION}" -o dashgate-${{ matrix.goos }}-${{ matrix.goarch }} .
+          OUTPUT=dashgate-${{ matrix.goos }}-${{ matrix.goarch }}
+          go build -ldflags="-s -w -X main.Version=${VERSION}" -o "${OUTPUT}" .
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: dashgate-${{ matrix.goos }}-${{ matrix.goarch }}
-          path: dashgate-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: dashgate-${{ matrix.goos }}-${{ matrix.goarch }}*
 
   docker:
     name: Docker Image

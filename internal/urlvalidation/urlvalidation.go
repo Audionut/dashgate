@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net"
 	"net/url"
+	"path/filepath"
 	"strings"
 )
 
@@ -90,7 +91,7 @@ func ValidateNginxConfigPath(path string) error {
 		}
 	}
 	// Must be an absolute path
-	if !strings.HasPrefix(path, "/") && !strings.HasPrefix(path, "C:") && !strings.HasPrefix(path, "\\") {
+	if !filepath.IsAbs(path) {
 		return fmt.Errorf("path must be absolute")
 	}
 	// Block path traversal

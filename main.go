@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"syscall"
@@ -61,10 +62,16 @@ func main() {
 	app := server.New()
 	app.Version = Version
 
+	baseDir := resolveBaseDir()
+
 	// Configuration paths
 	app.ConfigPath = os.Getenv("CONFIG_PATH")
 	if app.ConfigPath == "" {
-		app.ConfigPath = "/config/config.yaml"
+		if runtime.GOOS == "windows" {
+			app.ConfigPath = filepath.Join(baseDir, "config", "config.yaml")
+		} else {
+			app.ConfigPath = "/config/config.yaml"
+		}
 	}
 
 	app.MappingsPath = strings.TrimSuffix(app.ConfigPath, ".yaml") + "-mappings.yaml"
@@ -74,7 +81,11 @@ func main() {
 
 	app.IconsPath = os.Getenv("ICONS_PATH")
 	if app.IconsPath == "" {
-		app.IconsPath = "/config/icons"
+		if runtime.GOOS == "windows" {
+			app.IconsPath = filepath.Join(baseDir, "config", "icons")
+		} else {
+			app.IconsPath = "/config/icons"
+		}
 	}
 	if err := os.MkdirAll(app.IconsPath, 0755); err != nil {
 		log.Printf("Warning: could not create icons directory %s: %v", app.IconsPath, err)
@@ -97,7 +108,11 @@ func main() {
 	}
 
 	// Template directory (default: /app/templates for Docker, override with TEMPLATES_PATH)
-	app.TemplateDir = "/app/templates"
+	if runtime.GOOS == "windows" {
+		app.TemplateDir = filepath.Join(baseDir, "templates")
+	} else {
+		app.TemplateDir = "/app/templates"
+	}
 	if dir := os.Getenv("TEMPLATES_PATH"); dir != "" {
 		app.TemplateDir = dir
 	}
@@ -157,6 +172,9 @@ func main() {
 
 	// Static files (default: /app/static for Docker, override with STATIC_PATH)
 	staticDir := "/app/static"
+	if runtime.GOOS == "windows" {
+		staticDir = filepath.Join(baseDir, "static")
+	}
 	if dir := os.Getenv("STATIC_PATH"); dir != "" {
 		staticDir = dir
 	}
@@ -317,4 +335,12 @@ func main() {
 	}
 	app.DB.Close()
 	log.Println("Server stopped")
+}
+
+func resolveBaseDir() string {
+	exePath, err := os.Executable()
+	if err != nil {
+		return "."
+	}
+	return filepath.Dir(exePath)
 }

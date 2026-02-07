@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"runtime/debug"
 	"sort"
 	"strings"
@@ -111,14 +112,14 @@ func StopNginxDiscoveryLoop(app *server.App) {
 
 // skipExtensions contains file extensions to ignore when scanning config directories.
 var skipExtensions = map[string]bool{
-	".bak":      true,
-	".dpkg-old": true,
-	".dpkg-new": true,
+	".bak":       true,
+	".dpkg-old":  true,
+	".dpkg-new":  true,
 	".dpkg-dist": true,
-	".swp":      true,
-	".swo":      true,
-	".tmp":      true,
-	".orig":     true,
+	".swp":       true,
+	".swo":       true,
+	".tmp":       true,
+	".orig":      true,
 }
 
 // skipLocationPaths contains exact location paths that are not real apps.
@@ -147,7 +148,7 @@ var skipLocationPatterns = []string{
 	// Auth/security middleware (these are internal, not user-facing apps)
 	"/authelia/",
 	"/authentik/",
-	"/api/authz",  // More specific to avoid matching /authz-app/
+	"/api/authz", // More specific to avoid matching /authz-app/
 	"/.oauth/",
 	"/oauth2/",
 	// WebSocket/realtime endpoints (features of other apps)
@@ -155,9 +156,9 @@ var skipLocationPatterns = []string{
 	"/sockjs/",
 	"/websocket/",
 	// Common sub-features (not standalone apps)
-	"/api/",       // API namespaces
-	"/control/",   // Admin control panels
-	"/download/",  // Download endpoints
+	"/api/",      // API namespaces
+	"/control/",  // Admin control panels
+	"/download/", // Download endpoints
 	"/downloads/",
 }
 
@@ -406,6 +407,10 @@ func DiscoverNginxApps(app *server.App) {
 	app.SysConfigMu.RUnlock()
 
 	if nginxConfigPath == "" {
+		if runtime.GOOS == "windows" {
+			log.Printf("Nginx discovery: no config path configured on Windows.")
+			return
+		}
 		nginxConfigPath = "/etc/nginx/conf.d"
 	}
 
