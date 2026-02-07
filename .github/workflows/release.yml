@@ -6,6 +6,10 @@ on:
       - "v*"
   workflow_dispatch:
     inputs:
+      release_tag:
+        description: "Tag name for the release (e.g. v1.2.3)"
+        type: string
+        required: false
       create_release:
         description: "Create GitHub release and upload assets"
         type: boolean
@@ -142,4 +146,6 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           generate_release_notes: true
+          tag_name: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || '' }}
+          target_commitish: ${{ github.event_name == 'workflow_dispatch' && github.sha || '' }}
           files: release/*
